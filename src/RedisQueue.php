@@ -166,9 +166,10 @@ class RedisQueue extends BaseQueue
     {
         $job_id = JobId::generate();
 
-        if($this->lastPushed instanceof \Aloware\FairQueue\FairSignalJob) {
-            $prefix = config('fair-queue.signal_key_prefix_for_horizon', 'fq:');
-            return $prefix . $job_id;
+        $fair_signal_prefix = config('fair-queue.signal_key_prefix_for_horizon', null);
+
+        if($fair_signal_prefix && $this->lastPushed instanceof \Aloware\FairQueue\FairSignalJob) {
+            return $fair_signal_prefix . $job_id;
         }
         return $job_id;
     }
