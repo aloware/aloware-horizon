@@ -1,5 +1,5 @@
 {
-    "name": "aloware/horizon",
+    "name": "aloware/aloware-horizon",
     "description": "Dashboard and code-driven configuration for Laravel queues.",
     "keywords": ["laravel", "queue"],
     "license": "MIT",
