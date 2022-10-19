@@ -170,7 +170,8 @@ class RedisQueue extends BaseQueue
 
         if($fair_signal_prefix && $this->lastPushed instanceof \Aloware\FairQueue\FairSignalJob) {
             $queue = $this->lastPushed->queue;
-            return "{$fair_signal_prefix}{$queue}:$job_id";
+            $partition = $this->lastPushed->partition;
+            return "{$fair_signal_prefix}{$queue}:{$partition}:$job_id";
         }
         return $job_id;
     }
