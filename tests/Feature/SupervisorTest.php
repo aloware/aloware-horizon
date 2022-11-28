@@ -2,7 +2,7 @@
 
 namespace Laravel\Horizon\Tests\Feature;
 
-use Cake\Chronos\Chronos;
+use Carbon\CarbonImmutable;
 use Exception;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Support\Facades\Event;
@@ -67,7 +67,7 @@ class SupervisorTest extends IntegrationTest
 
         $host = MasterSupervisor::name();
         $this->assertSame(
-            'exec '.$this->phpBinary.' worker.php redis --delay=0 --memory=128 --queue="default" --sleep=3 --timeout=60 --tries=0 --supervisor='.$host.':name',
+            'exec '.$this->phpBinary.' worker.php redis --name=default --supervisor='.$host.':name --backoff=0 --max-time=0 --max-jobs=0 --memory=128 --queue="default" --sleep=3 --timeout=60 --tries=0 --rest=0',
             $supervisor->processes()[0]->getCommandLine()
         );
     }
@@ -85,12 +85,12 @@ class SupervisorTest extends IntegrationTest
         $host = MasterSupervisor::name();
 
         $this->assertSame(
-            'exec '.$this->phpBinary.' worker.php redis --delay=0 --memory=128 --queue="first" --sleep=3 --timeout=60 --tries=0 --supervisor='.$host.':name',
+            'exec '.$this->phpBinary.' worker.php redis --name=default --supervisor='.$host.':name --backoff=0 --max-time=0 --max-jobs=0 --memory=128 --queue="first" --sleep=3 --timeout=60 --tries=0 --rest=0',
             $supervisor->processes()[0]->getCommandLine()
         );
 
         $this->assertSame(
-            'exec '.$this->phpBinary.' worker.php redis --delay=0 --memory=128 --queue="second" --sleep=3 --timeout=60 --tries=0 --supervisor='.$host.':name',
+            'exec '.$this->phpBinary.' worker.php redis --name=default --supervisor='.$host.':name --backoff=0 --max-time=0 --max-jobs=0 --memory=128 --queue="second" --sleep=3 --timeout=60 --tries=0 --rest=0',
             $supervisor->processes()[1]->getCommandLine()
         );
     }
@@ -125,7 +125,7 @@ class SupervisorTest extends IntegrationTest
         $supervisor->loop();
         usleep(250 * 1000);
 
-        $supervisor->processes()[0]->restartAgainAt = Chronos::now()->subMinutes(10);
+        $supervisor->processes()[0]->restartAgainAt = CarbonImmutable::now()->subMinutes(10);
 
         // Make sure that the worker attempts restart...
         $restarted = false;
@@ -419,6 +419,40 @@ class SupervisorTest extends IntegrationTest
 
         // Call twice to make sure cool down works...
         $supervisor->loop();
+    }
+
+    public function test_auto_scaler_is_not_called_on_loop_during_cooldown()
+    {
+        $options = $this->supervisorOptions();
+        $options->autoScale = true;
+        $this->supervisor = $supervisor = new Supervisor($options);
+
+        // Start the supervisor...
+        $supervisor->scale(1);
+
+        $time = CarbonImmutable::create();
+
+        $this->assertNull($supervisor->lastAutoScaled);
+
+        $supervisor->lastAutoScaled = null;
+        CarbonImmutable::setTestNow($time);
+        $supervisor->loop();
+        $this->assertTrue($supervisor->lastAutoScaled->eq($time));
+
+        $supervisor->lastAutoScaled = $time;
+        CarbonImmutable::setTestNow($time->addSeconds($supervisor->options->balanceCooldown - 0.01));
+        $supervisor->loop();
+        $this->assertTrue($supervisor->lastAutoScaled->eq($time));
+
+        $supervisor->lastAutoScaled = $time;
+        CarbonImmutable::setTestNow($time->addSeconds($supervisor->options->balanceCooldown));
+        $supervisor->loop();
+        $this->assertTrue($supervisor->lastAutoScaled->eq($time->addSeconds($supervisor->options->balanceCooldown)));
+
+        $supervisor->lastAutoScaled = $time;
+        CarbonImmutable::setTestNow($time->addSeconds($supervisor->options->balanceCooldown + 0.01));
+        $supervisor->loop();
+        $this->assertTrue($supervisor->lastAutoScaled->eq($time->addSeconds($supervisor->options->balanceCooldown)));
     }
 
     public function test_supervisor_with_duplicate_name_cant_be_started()

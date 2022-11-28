@@ -35,7 +35,7 @@ class AutoScalerTest extends IntegrationTest
         $this->assertSame(13, $supervisor->processPools['first']->totalProcessCount());
         $this->assertSame(7, $supervisor->processPools['second']->totalProcessCount());
 
-        // Asset scaler stays at target values...
+        // Assert scaler stays at target values...
         $scaler->scale($supervisor);
 
         $this->assertSame(13, $supervisor->processPools['first']->totalProcessCount());
@@ -180,5 +180,64 @@ class AutoScalerTest extends IntegrationTest
         });
 
         return [$scaler, $supervisor];
+    }
+
+    public function test_scaler_considers_max_shift_and_attempts_to_get_closer_to_proper_balance_on_each_iteration()
+    {
+        [$scaler, $supervisor] = $this->with_scaling_scenario(150, [
+            'first' => ['current' => 75, 'size' => 600, 'runtime' => 75],
+            'second' => ['current' => 75, 'size' => 300, 'runtime' => 75],
+        ]);
+
+        $supervisor->options->balanceMaxShift = 10;
+
+        $scaler->scale($supervisor);
+
+        $this->assertEquals(85, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertEquals(65, $supervisor->processPools['second']->totalProcessCount());
+
+        $scaler->scale($supervisor);
+
+        $this->assertEquals(95, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertEquals(55, $supervisor->processPools['second']->totalProcessCount());
+
+        $scaler->scale($supervisor);
+
+        $this->assertEquals(100, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertEquals(50, $supervisor->processPools['second']->totalProcessCount());
+
+        // Assert scaler stays at target values...
+        $scaler->scale($supervisor);
+
+        $this->assertEquals(100, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertEquals(50, $supervisor->processPools['second']->totalProcessCount());
+
+        // Assert scaler still stays at target values...
+        $scaler->scale($supervisor);
+
+        $this->assertEquals(100, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertEquals(50, $supervisor->processPools['second']->totalProcessCount());
+    }
+
+    public function test_scaler_does_not_permit_going_to_zero_processes_despite_exceeding_max_processes()
+    {
+        $external = Mockery::mock(SystemProcessCounter::class);
+        $external->shouldReceive('get')->with('name')->andReturn(5);
+        $this->app->instance(SystemProcessCounter::class, $external);
+
+        [$scaler, $supervisor] = $this->with_scaling_scenario(15, [
+            'first' => ['current' => 16, 'size' => 1, 'runtime' => 1],
+            'second' => ['current' => 1, 'size' => 1, 'runtime' => 1],
+        ], ['minProcesses' => 1]);
+
+        $scaler->scale($supervisor);
+
+        $this->assertSame(15, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
+
+        $scaler->scale($supervisor);
+
+        $this->assertSame(14, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
     }
 }

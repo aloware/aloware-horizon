@@ -137,6 +137,30 @@
 
 
             /**
+             * Determine if the given job was retried.
+             */
+            wasRetried(job) {
+                return job.retried_by && job.retried_by.length;
+            },
+
+
+            /**
+             * Determine if the given job is a retry.
+             */
+            isRetry(job) {
+                return job.payload.retry_of;
+            },
+
+            /**
+             * Construct the tooltip label for a retried job.
+             */
+            retriedJobTooltip(job) {
+                let lastRetry = job.retried_by[job.retried_by.length - 1];
+
+                return `Total retries: ${job.retried_by.length}, Last retry status: ${_.upperFirst(lastRetry.status)}`;
+            },
+
+            /**
              * Refresh the jobs every period of time.
              */
             refreshJobsPeriodically() {
@@ -222,11 +246,24 @@
                         <router-link :title="job.name" :to="{ name: 'failed-jobs-preview', params: { jobId: job.id }}">
                             {{ jobBaseName(job.name) }}
                         </router-link>
+
+                        <small class="badge badge-secondary badge-sm"
+                               v-tooltip:top="retriedJobTooltip(job)"
+                               v-if="wasRetried(job)">
+                            Retried
+                        </small>
+
                         <br>
 
                         <small class="text-muted">
                             Queue: {{job.queue}}
                             | Attempts: {{ job.payload.attempts }}
+                            <span v-if="isRetry(job)">
+                            | Retry of
+                            <router-link :title="job.name" :to="{ name: 'failed-jobs-preview', params: { jobId: job.payload.retry_of }}">
+                                {{ job.payload.retry_of.split('-')[0] }}
+                            </router-link>
+                            </span>
                             <span v-if="job.payload.tags && job.payload.tags.length" class="text-break">
                             | Tags: {{ job.payload.tags && job.payload.tags.length ? job.payload.tags.join(', ') : '' }}
                             </span>
@@ -242,7 +279,7 @@
                     </td>
 
                     <td class="text-right table-fit">
-                        <a href="#" @click.prevent="retry(job.id)" v-if="!hasCompleted(job)">
+                        <a href="#" title="Retry Job" @click.prevent="retry(job.id)" v-if="!hasCompleted(job)">
                             <svg class="fill-primary" viewBox="0 0 20 20" style="width: 1.5rem; height: 1.5rem;" :class="{spin: isRetrying(job.id)}">
                                 <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/>
                             </svg>

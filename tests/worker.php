@@ -9,14 +9,14 @@ use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Orchestra\Testbench\Concerns\CreatesApplication;
 
-$appLoader = new class {
+$appLoader = new class
+{
     use CreatesApplication;
 
     /**
      * Define environment setup.
      *
-     * @param  \Illuminate\Foundation\Application   $app
-     *
+     * @param  \Illuminate\Foundation\Application  $app
      * @return void
      */
     protected function getEnvironmentSetUp($app)
