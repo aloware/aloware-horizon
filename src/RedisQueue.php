@@ -70,7 +70,7 @@ class RedisQueue extends BaseQueue
 
         $this->event($this->getQueue($queue), new JobPushed($payload->value));
 
-        return $payload->id($this->lastPushed);
+        return $payload->id();
     }
 
     /**
