@@ -41,11 +41,21 @@ class JobPayload implements ArrayAccess
     /**
      * Get the job ID from the payload.
      *
+     * @param object|null  $lastPushed
      * @return string
      */
-    public function id()
+    public function id($lastPushed = null)
     {
-        return $this->decoded['uuid'] ?? $this->decoded['id'];
+        $job_id = $this->decoded['uuid'] ?? $this->decoded['id'];
+
+        $fair_signal_prefix = config('fair-queue.signal_key_prefix_for_horizon');
+
+        if( $fair_signal_prefix && $lastPushed && $this->isFairSignal($lastPushed)) {
+            $queue = $lastPushed->queue;
+            $partition = $lastPushed->partition;
+            return "{$fair_signal_prefix}{$queue}:{$partition}:$job_id";
+        }
+        return $job_id;
     }
 
     /**
@@ -56,6 +66,17 @@ class JobPayload implements ArrayAccess
     public function tags()
     {
         return Arr::get($this->decoded, 'tags', []);
+    }
+
+    /**
+     * Check the job type is fair-signal.
+     *
+     * @param object  $lastPushed
+     * @return boolean
+     */
+    public function isFairSignal($lastPushed)
+    {
+        return $this->lastPushed instanceof \Aloware\FairQueue\FairSignalJob;
     }
 
     /**
