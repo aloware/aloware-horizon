@@ -7,6 +7,7 @@ use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Mail\SendQueuedMailable;
 use Illuminate\Notifications\SendQueuedNotifications;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Arr;
 
 class JobPayload implements ArrayAccess
@@ -58,10 +59,8 @@ class JobPayload implements ArrayAccess
 
         $fair_signal_prefix = config('fair-queue.signal_key_prefix_for_horizon');
 
-        if( $fair_signal_prefix && $this->job && $this->isFairSignal($this->job)) {
-            $queue = $this->job->queue;
-            $partition = $this->job->partition;
-            return "{$fair_signal_prefix}{$queue}:{$partition}:$job_id";
+        if($fair_signal_prefix && $this->job && $this->isFairSignal($this->job)) {
+            $this->addFairSignalsToList($job_id, $fair_signal_prefix);
         }
         return $job_id;
     }
@@ -84,6 +83,24 @@ class JobPayload implements ArrayAccess
     public function isFairSignal()
     {
         return $this->job instanceof \Aloware\FairQueue\FairSignalJob;
+    }
+
+    /**
+     * Add fair-signals to a redis list.
+     *
+     * @param string $job_id
+     * @param string $fair_signal_prefix
+     * @return void
+     */
+    public function addFairSignalsToList(string $job_id, string $fair_signal_prefix)
+    {
+        $redis = $this->getSignalsConnection();
+
+        $queue = $this->job->queue;
+        $partition = $this->job->partition;
+        $list_key = "{$fair_signal_prefix}{$queue}:{$partition}";
+
+        $redis->lpush($list_key, $job_id);
     }
 
     /**
@@ -246,5 +263,16 @@ class JobPayload implements ArrayAccess
     public function offsetUnset($offset): void
     {
         unset($this->decoded[$offset]);
+    }
+
+    /**
+     * Returns Redis Fair Signal Connection
+     *
+     * @return \Illuminate\Redis\Connections\Connection
+    */
+    public function getSignalsConnection()
+    {
+        $database = config('fair-queue.signals_database');
+        return Redis::connection($database);
     }
 }
